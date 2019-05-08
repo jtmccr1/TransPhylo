@@ -1,5 +1,69 @@
+#' A helper function to start the tree log of a run
+#' It writes the taxa labels from a provided phylo object, but does not add any trees.
+#' 
+#' @param file the log file
+#' @param tree phylo object which provides taxa labels and encodings
+startNexus<-function(file,tree){
+  string = "#NEXUS\n\nBegin taxa;\n\tDimensions ntax="
+  string = paste0(string,length(tree$tip.label),";\n\tTaxlabels\n")
+  for(i in 1:length(tree$tip.label)){
+    string = paste0(string,"\t\t",tree$tip.label[i],"\n")
+  }
+  string=paste0(string,"\t\t;\nEND;\n\nBegin trees;\n\n\tTranslate\n")
+  for(i in 1:(length(tree$tip.label)-1)){
+    string = paste0(string,"\t\t",i," ",tree$tip.label[i],",\n")
+  }
+  lastTaxa<-length(tree$tip.label)
+  string = paste0(string,"\t\t",lastTaxa," ",tree$tip.label[lastTaxa],"\n\t\t;")
+  string=paste0(string,"\nEND;\n")
+  cat(string,file=file)
+}
+
+
+#' This appends a tree to a nexus file
+#' This assumes the taxa labels are already in the file. 
+#' The last line of the file is assumed to be "END;". It is removed 
+#' and "END;" is added after the tree.
+#' 
+#' @param file The tree file we are appending to
+#' @param tree The phylo tree object
+#' @param name The name of the tree file.
+appendTree<-function(file,tree,name="unnamed"){
+  fileString = readLines(file)
+  fileString=fileString[-length(fileString)] # get rid of the last line "END;"
+  if(is.rooted(tree)){
+    rootedLab = "[&R] "
+  }else{
+    rootedLab = "[&U] "
+  }
+  treeString<-paste0("tree ",name, " = ",rootedLab, print_annotated(tree,"newick"),";\nEND;")
+  fileString[length(fileString)+1]=treeString
+  writeLines(fileString,file)
+}
+#' A helper function to start the log of a run
+#' It just writes the header
+#' @param file the log file
+startLog<-function(file){
+  logString = paste(c("state","pTTree","pPTree","neg","off.r","off.p","pi","w.shape","w.scale","ws.shape","ws.scale\n"),sep="\t")
+  cat(logString,file=file)
+}
+#'Append States to a log file
+#' @param file the file to append to
+#' @param record named list that holds the parameters we are logging
+#' @param state the integer number of the state
+appendLog<-function(file,record,state){
+  logItems = c(state,unlist(record[!(names(record) %in% c("ctree","source"))]))
+  logString = paste(logItems,collapse = "\t")
+  logString=paste0(logString,"\n")
+  cat(logString,file=file,append=T)
+}
+
+
+
+
 #' Infer transmission tree given a phylogenetic tree
 #' @param ptree Phylogenetic tree
+#' @param fileRoot The file root to log states and trees.Defualt is NULL - no logging
 #' @param w.shape Shape parameter of the Gamma probability density function representing the generation time
 #' @param w.scale Scale parameter of the Gamma probability density function representing the generation time 
 #' @param ws.shape Shape parameter of the Gamma probability density function representing the sampling time
@@ -19,13 +83,24 @@
 #' @param optiStart Whether or not to optimise the MCMC start point
 #' @param dateT Date when process stops (this can be Inf for fully simulated outbreaks)
 #' @return posterior sample set of transmission trees
+#' @import phylotate
+#' @import ape
 #' @export
-inferTTree = function(ptree, w.shape=2, w.scale=1, ws.shape=w.shape, ws.scale=w.scale, mcmcIterations=1000,
+inferTTree = function(ptree, fileRoot=NULL, w.shape=2, w.scale=1, ws.shape=w.shape, ws.scale=w.scale, mcmcIterations=1000,
                       thinning=1, startNeg=100/365, startOff.r=1, startOff.p=0.5, startPi=0.5, updateNeg=TRUE,
                       updateOff.r=TRUE, updateOff.p=FALSE, updatePi=TRUE, startCTree=NA, updateTTree=TRUE,
                       optiStart=TRUE, dateT=Inf) {
 #  memoise::forget(getOmegabar)
 #  memoise::forget(probSubtree)
+  if(!(is.null(fileRoot))){
+    ## Set up loggers
+    logFile = paste0(fileRoot,".log")
+    treesfile = paste0(fileRoot,".trees")
+    #Start logs
+    startLog(logFile)
+    phyloTree<-phyloFromPTree(ptree) # just to get the tip names ect.
+    startNexus(treesfile,phyloTree)
+  }
   ptree$ptree[,1]=ptree$ptree[,1]+runif(nrow(ptree$ptree))*1e-10#Ensure that all leaves have unique times
   for (i in (ceiling(nrow(ptree$ptree)/2)+1):nrow(ptree$ptree)) for (j in 2:3) 
     if (ptree$ptree[ptree$ptree[i,j],1]-ptree$ptree[i,1]<0) 
@@ -61,7 +136,15 @@ inferTTree = function(ptree, w.shape=2, w.scale=1, ws.shape=w.shape, ws.scale=w.
       record[[i/thinning]]$ws.scale <- ws.scale
       record[[i/thinning]]$source <- ctree$ctree[ctree$ctree[which(ctree$ctree[,4]==0),2],4]
       if (record[[i/thinning]]$source<=length(ctree$nam)) record[[i/thinning]]$source=ctree$nam[record[[i/thinning]]$source] else record[[i/thinning]]$source='Unsampled'
-    }
+    
+      if(!(is.null(fileRoot))){
+        #Write to logs
+        PhyloCtree<-phyloFromCtree(ctree)
+        appendTree(treesfile,PhyloCtree,paste0("STATE_",i))
+        appendLog(logFile,record[[i/thinning]],i)
+      }
+      
+      }
     
     if (updateTTree) {
     #Metropolis update for transmission tree 
