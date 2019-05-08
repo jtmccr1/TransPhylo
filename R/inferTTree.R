@@ -44,7 +44,7 @@ appendTree<-function(file,tree,name="unnamed"){
 #' It just writes the header
 #' @param file the log file
 startLog<-function(file){
-  logString = paste(c("state","pTTree","pPTree","neg","off.r","off.p","pi","w.shape","w.scale","ws.shape","ws.scale\n"),sep="\t")
+  logString = paste(c("state","pTTree","pPTree","neg","off.r","off.p","pi","w.shape","w.scale","ws.shape","ws.scale\n"),collapse="\t")
   cat(logString,file=file)
 }
 #'Append States to a log file
