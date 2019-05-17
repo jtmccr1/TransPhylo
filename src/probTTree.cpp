@@ -115,8 +115,8 @@ double alpha(double tinf, int d, double p, double r, NumericVector wbar0, double
     if(log(Rf_choose(k,d))+lterm < log(1e-8)) break; // Achieved desired accuracy
     
     k++;
-    
-    if(k>1e6) throw(Rcpp::exception("too many iterations, giving up!"));
+    //reject the state
+    if(k>1e6) return(-INFINITY);//throw(Rcpp::exception("too many iterations, giving up!"));
     
   }
   

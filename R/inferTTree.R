@@ -63,7 +63,7 @@ appendLog<-function(file,record,state){
 
 #' Infer transmission tree given a phylogenetic tree
 #' @param ptree Phylogenetic tree
-#' @param fileRoot The file root to log states and trees.Defualt is NULL - no logging
+#' @param fileRoot The file root to log states.Defualt is NULL - no logging
 #' @param w.shape Shape parameter of the Gamma probability density function representing the generation time
 #' @param w.scale Scale parameter of the Gamma probability density function representing the generation time 
 #' @param ws.shape Shape parameter of the Gamma probability density function representing the sampling time
@@ -95,11 +95,11 @@ inferTTree = function(ptree, fileRoot=NULL, w.shape=2, w.scale=1, ws.shape=w.sha
   if(!(is.null(fileRoot))){
     ## Set up loggers
     logFile = paste0(fileRoot,".log")
-    treesfile = paste0(fileRoot,".trees")
+    # treesfile = paste0(fileRoot,".trees")
     #Start logs
     startLog(logFile)
-    phyloTree<-phyloFromPTree(ptree) # just to get the tip names ect.
-    startNexus(treesfile,phyloTree)
+    # phyloTree<-phyloFromPTree(ptree) # just to get the tip names ect.
+    # startNexus(treesfile,phyloTree)
   }
   ptree$ptree[,1]=ptree$ptree[,1]+runif(nrow(ptree$ptree))*1e-10#Ensure that all leaves have unique times
   for (i in (ceiling(nrow(ptree$ptree)/2)+1):nrow(ptree$ptree)) for (j in 2:3) 
@@ -139,8 +139,8 @@ inferTTree = function(ptree, fileRoot=NULL, w.shape=2, w.scale=1, ws.shape=w.sha
     
       if(!(is.null(fileRoot))){
         #Write to logs
-        PhyloCtree<-phyloFromCtree(ctree)
-        appendTree(treesfile,PhyloCtree,paste0("STATE_",i))
+        # PhyloCtree<-phyloFromCtree(ctree)
+        # appendTree(treesfile,PhyloCtree,paste0("STATE_",i))
         appendLog(logFile,record[[i/thinning]],i)
       }
       
