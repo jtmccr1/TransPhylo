@@ -58,7 +58,102 @@ appendLog<-function(file,record,state){
   cat(logString,file=file,append=T)
 }
 
+#' A helper function to start the log of a run
+#' It just writes the header
+#' @param file the log file
+startInfectionLog<-function(file,ptree){
+  logString = paste(c("state",ptree$nam,"\n"),collapse="\t")
+  cat(logString,file=file)
+}
 
+#'Append Infection times to a log file
+#' @param file the file to append to
+#' @param record named list that holds the parameters we are logging
+#' @param state the integer number of the state
+appendInfectionLog<-function(file,record,state){
+  ctree = record$ctree
+  ttree = extractTTree(ctree)
+  transmissionTimes<-matrix(nrow=1,ncol=(1+length(ttree$nam)))
+  # add the state label
+  transmissionTimes[1]=state
+  # for each tip append the transmission time - assumes the tip order doesn't change
+  for(i in 1:length(ttree$nam)){
+    transmissionTimes[i+1]<-ttree$ttree[i,1]
+    }
+  
+  logString = paste(transmissionTimes,collapse = "\t")
+  logString=paste0(logString,"\n")
+  cat(logString,file=file,append=T)
+}
+
+
+#'Append Infection times to a log file
+#' @param file the file to append to
+#' @param record named list that holds the parameters we are logging
+#' @param state the integer number of the state
+appendInfectionLog<-function(file,record,state){
+  ctree = record$ctree
+  ttree = extractTTree(ctree)
+  transmissionTimes<-matrix(nrow=1,ncol=(1+length(ttree$nam)))
+  # add the state label
+  transmissionTimes[1]=state
+  # for each tip append the transmission time - assumes the tip order doesn't change
+  for(i in 1:length(ttree$nam)){
+    transmissionTimes[i+1]<-ttree$ttree[i,1]
+  }
+  
+  logString = paste(transmissionTimes,collapse = "\t")
+  logString=paste0(logString,"\n")
+  cat(logString,file=file,append=T)
+}
+
+
+#' A helper function to start the log of a run
+#' It just writes the header
+#' @param file the log file
+startTransmissionLog<-function(file){
+  logString = paste(c("target","source","unknownIntermediates","dataSource\n"),collapse=",")
+  cat(logString,file=file)
+}
+#' Get the most recent sampled ancester and the number of 
+#' intermediate cases given a ctree and a node # that refers 
+#' to a tip.
+
+getLink<-function(node,ctree){
+  
+  ttree<-extractTTree(ctree)
+  ttree_mat<-ttree$ttree
+  target<-ttree$nam[node]
+  parentIndex<-ttree_mat[node,3]
+  
+  insertedCase<-0
+  while(parentIndex>length(ttree$nam) & parentIndex>0){
+    insertedCase=insertedCase+1
+    node<-parentIndex
+    parentIndex<-ttree_mat[node,3]
+  }
+  if(parentIndex==0){
+    source<-"UnsampledrootCase"
+  }else{
+    source<-ttree$nam[parentIndex]
+    
+  }
+  return(c(target,source,insertedCase))
+}
+#'Transmission Infection times to a log file
+#' @param file the file to append to
+#' @param record named list that holds the parameters we are logging
+#' @param state the integer number of the state
+appendTransmissionLog<-function(file,record,state){
+  ctree = record$ctree
+  transmissionLog<-matrix(nrow=length(ctree$nam),ncol=4)
+  # add the state label
+  # for each tip append the transmission time - assumes the tip order doesn't change
+  for(i in 1:length(ctree$nam)){
+    transmissionLog[i,]<-c(getLink(i,ctree),"transphylo")
+  }
+  write.table(x=transmissionLog,file=file,row.names = F,quote=F,append = TRUE, sep = ",",col.names = F) 
+}
 
 
 #' Infer transmission tree given a phylogenetic tree
@@ -95,11 +190,15 @@ inferTTree = function(ptree, fileRoot=NULL, w.shape=2, w.scale=1, ws.shape=w.sha
   if(!(is.null(fileRoot))){
     ## Set up loggers
     logFile = paste0(fileRoot,".log")
-    # treesfile = paste0(fileRoot,".trees")
+    infectionTimeLogFile= paste0(fileRoot,"_infectionTimes",".log")
+    transmissionLogFile =  paste0(fileRoot,"_links",".log")
+    treesfile = paste0(fileRoot,"_log",".trees")
     #Start logs
     startLog(logFile)
-    # phyloTree<-phyloFromPTree(ptree) # just to get the tip names ect.
-    # startNexus(treesfile,phyloTree)
+    startInfectionLog(infectionTimeLogFile,ptree)
+    startTransmissionLog(transmissionLogFile)
+    phyloTree<-phyloFromPTree(ptree) # just to get the tip names ect.
+    startNexus(treesfile,phyloTree)
   }
   ptree$ptree[,1]=ptree$ptree[,1]+runif(nrow(ptree$ptree))*1e-10#Ensure that all leaves have unique times
   for (i in (ceiling(nrow(ptree$ptree)/2)+1):nrow(ptree$ptree)) for (j in 2:3) 
@@ -139,9 +238,11 @@ inferTTree = function(ptree, fileRoot=NULL, w.shape=2, w.scale=1, ws.shape=w.sha
     
       if(!(is.null(fileRoot))){
         #Write to logs
-        # PhyloCtree<-phyloFromCtree(ctree)
-        # appendTree(treesfile,PhyloCtree,paste0("STATE_",i))
+        PhyloCtree<-phyloFromCtree(ctree)
+        appendTree(treesfile,PhyloCtree,paste0("STATE_",i))
         appendLog(logFile,record[[i/thinning]],i)
+        appendInfectionLog(infectionTimeLogFile,record[[i/thinning]],i)
+        appendTransmissionLog(transmissionLogFile,record[[i/thinning]],i)
       }
       
       }
